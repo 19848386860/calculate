@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CALC·84 — 四则运算</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Unbounded:wght@500;700&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#171310; --ink:#f2ede2; --sub:#a89e8d;
+  --panel:#211c17; --panel-line:#3a332b;
+  --body1:#2b251e; --body2:#1a1511;
+  --lcd1:#ccd69e; --lcd2:#b7c487; --lcd-ink:#1e2a14; --lcd-dim:#63703f;
+  --num-edge:#a49c86; --num-ink:#262119;
+  --fn-edge:#8f4816;  --fn-ink:#2b1608;
+  --ac-edge:#7e2418;  --ac-ink:#fff;
+  --op-edge:#13251d;  --op-ink:#d9f0e1;
+  --eq-edge:#4f7a2a;  --eq-ink:#182a08;
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html,body{height:100%}
+body{
+  font-family:"Space Grotesk",system-ui,sans-serif;
+  background:var(--bg); color:var(--ink);
+  display:grid; place-items:center;
+  min-height:100vh; overflow-x:hidden; position:relative;
+  padding:28px;
+}
+/* ── 环境：网点纹理 + 两团慢速漂移的环境光 ── */
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image:radial-gradient(rgba(255,244,220,.035) 1px, transparent 1.4px);
+  background-size:22px 22px;
+}
+.glow{position:fixed; border-radius:50%; filter:blur(90px); pointer-events:none; z-index:0; mix-blend-mode:screen}
+.g1{width:52vw;height:52vw; left:-14vw; top:-16vw; background:radial-gradient(circle,#9fd06a33,transparent 65%); animation:drift1 19s ease-in-out infinite alternate}
+.g2{width:46vw;height:46vw; right:-12vw; bottom:-14vw; background:radial-gradient(circle,#ff9e4a2e,transparent 65%); animation:drift2 23s ease-in-out infinite alternate}
+@keyframes drift1{to{transform:translate(6vw,5vh) scale(1.12)}}
+@keyframes drift2{to{transform:translate(-5vw,-6vh) scale(1.08)}}
+
+/* ── 顶部条 ── */
+.topbar{
+  position:fixed; top:0; left:0; right:0; z-index:5;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:16px 26px; font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--sub);
+}
+.topbar .mark{font-family:"Unbounded"; font-weight:700; font-size:13px; letter-spacing:.06em; color:var(--ink)}
+.topbar .mark em{font-style:normal; color:#ff9e4a}
+#soundBtn{
+  font:inherit; letter-spacing:.14em; text-transform:uppercase; cursor:pointer;
+  color:var(--sub); background:transparent; border:1px solid var(--panel-line);
+  border-radius:999px; padding:7px 14px; transition:.2s;
+}
+#soundBtn:hover{color:var(--ink); border-color:#8b6a45; transform:translateY(-1px)}
+#soundBtn .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff9e4a;margin-right:8px;vertical-align:1px;box-shadow:0 0 8px #ff9e4a}
+#soundBtn.off .dot{background:#5c5346; box-shadow:none}
+
+/* ── 三栏舞台 ── */
+.stage{position:relative; z-index:1; display:grid; grid-template-columns:1fr auto 1fr; gap:44px; align-items:center; max-width:1180px; width:100%}
+
+/* 左：铭牌 */
+.brand{justify-self:end; text-align:right; animation:rise .8s .1s cubic-bezier(.2,.9,.3,1) both}
+.brand h1{font-family:"Unbounded"; font-weight:700; font-size:clamp(34px,4.6vw,52px); line-height:.95; letter-spacing:-.02em}
+.brand h1 span{color:#9fd06a}
+.brand .tag{margin-top:14px; font-size:13px; letter-spacing:.32em; text-transform:uppercase; color:#ff9e4a}
+.brand p{margin-top:14px; font-size:14px; line-height:1.7; color:var(--sub); max-width:28ch}
+.brand .cells{margin-top:20px; display:flex; gap:5px; justify-content:flex-end}
+.brand .cells i{width:16px; height:8px; border-radius:2px; background:linear-gradient(#3b332a,#241e17); box-shadow:inset 0 1px 0 #ffffff14; animation:cell 3s ease-in-out infinite}
+.brand .cells i:nth-child(2){animation-delay:.4s}.brand .cells i:nth-child(3){animation-delay:.8s}.brand .cells i:nth-child(4){animation-delay:1.2s}
+@keyframes cell{50%{filter:brightness(1.5)}}
+
+/* 中：机身 */
+.calc{
+  width:clamp(292px,42vw,382px);
+  background:linear-gradient(178deg,var(--body1),var(--body2) 70%);
+  border-radius:30px; padding:18px 18px 22px;
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.09),
+    inset 0 -3px 8px rgba(0,0,0,.5),
+    0 1px 0 rgba(255,255,255,.05),
+    0 30px 60px -18px rgba(0,0,0,.75),
+    0 60px 90px -30px rgba(0,0,0,.5);
+  position:relative;
+  animation:rise .8s cubic-bezier(.2,.9,.3,1) both;
+}
+.calc::after{ /* 落地阴影 */
+  content:""; position:absolute; left:8%; right:8%; bottom:-34px; height:44px;
+  background:radial-gradient(ellipse at center, rgba(0,0,0,.55), transparent 70%);
+  filter:blur(8px); z-index:-1;
+}
+.solar{
+  height:16px; border-radius:8px; margin:0 4px 14px;
+  background:repeating-linear-gradient(90deg,#0e1a12 0 16px,#1d3323 16px 19px);
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.7), inset 0 -1px 0 #ffffff10;
+}
+/* 液晶屏 */
+.screen{
+  position:relative; overflow:hidden;
+  background:linear-gradient(180deg,var(--lcd1),var(--lcd2));
+  border-radius:12px; padding:12px 16px 14px;
+  box-shadow:inset 0 4px 14px rgba(31,42,20,.45), inset 0 -2px 6px rgba(255,255,255,.35), 0 0 0 3px #0d0b09;
+  display:flex; flex-direction:column; align-items:flex-end; gap:2px;
+  min-height:118px; justify-content:flex-end;
+}
+.screen::before{ /* 玻璃反光 */
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(112deg, transparent 32%, rgba(255,255,255,.22) 44%, rgba(255,255,255,.05) 52%, transparent 62%);
+}
+.boot{position:absolute; inset:0; background:#0c0f0a; animation:bootfade .9s .25s ease forwards; pointer-events:none}
+@keyframes bootfade{to{opacity:0; visibility:hidden}}
+.expr{font-family:"VT323",monospace; font-size:19px; color:var(--lcd-dim); letter-spacing:1px; min-height:22px; user-select:none}
+.readout{
+  font-family:"VT323",monospace; font-size:56px; line-height:1; color:var(--lcd-ink);
+  letter-spacing:2px; user-select:none; max-width:100%;
+  text-shadow:0 0 1px rgba(30,42,20,.5);
+  display:flex; align-items:baseline; gap:2px;
+}
+.led{
+  position:absolute; top:10px; left:12px; width:8px; height:8px; border-radius:50%;
+  background:#2f7a3d; box-shadow:0 0 9px #4fd47a, inset 0 0 2px #063; animation:pulse 2.6s ease-in-out infinite;
+}
+@keyframes pulse{50%{box-shadow:0 0 3px #2f7a3d; background:#255f33}}
+/* 按键 */
+.keys{display:grid; grid-template-columns:repeat(4,1fr); gap:11px; margin-top:18px}
+.key{
+  height:clamp(50px,8.4vw,64px); border:0; border-radius:14px; cursor:pointer;
+  font-family:"Space Grotesk"; font-weight:700; font-size:clamp(17px,2.6vw,23px);
+  transition:transform .06s ease, box-shadow .06s ease, filter .18s ease;
+  position:relative; touch-action:manipulation;
+}
+.key:hover{filter:brightness(1.07); transform:translateY(-2px)}
+.key:active,.key.pressed{transform:translateY(5px)!important; filter:brightness(.96)}
+.key:focus-visible{outline:3px solid #ff9e4a; outline-offset:2px}
+.key.num{background:linear-gradient(#f3edde,#ddd5c1); color:var(--num-ink); box-shadow:0 5px 0 var(--num-edge), 0 12px 16px -6px rgba(0,0,0,.5)}
+.key.fn {background:linear-gradient(#f5954a,#d9752a); color:var(--fn-ink); box-shadow:0 5px 0 var(--fn-edge), 0 12px 16px -6px rgba(0,0,0,.5)}
+.key.ac {background:linear-gradient(#ef5a43,#c83b29); color:var(--ac-ink); box-shadow:0 5px 0 var(--ac-edge), 0 12px 16px -6px rgba(0,0,0,.5)}
+.key.op {background:linear-gradient(#3a5d50,#264036); color:var(--op-ink); box-shadow:0 5px 0 var(--op-edge), 0 12px 16px -6px rgba(0,0,0,.5)}
+.key.eq {background:linear-gradient(#b3dd72,#8bbf4c); color:var(--eq-ink); box-shadow:0 5px 0 var(--eq-edge), 0 12px 16px -6px rgba(0,0,0,.5)}
+.key.wide{grid-column:span 2}
+.foot{display:flex; justify-content:space-between; margin-top:18px; padding:0 4px;
+  font-size:10px; letter-spacing:.28em; text-transform:uppercase; color:#6d6353}
+.foot b{color:#8b7f6a; font-weight:500}
+
+/* 右：面板 */
+.panel{
+  justify-self:start; width:min(300px,80vw);
+  background:var(--panel); border:1px solid var(--panel-line); border-radius:18px;
+  padding:22px 22px 18px; box-shadow:0 24px 50px -20px rgba(0,0,0,.6);
+  animation:rise .8s .2s cubic-bezier(.2,.9,.3,1) both;
+}
+.panel h2{font-family:"Unbounded"; font-size:13px; letter-spacing:.14em; color:#ff9e4a; margin-bottom:14px}
+.kmap{display:grid; grid-template-columns:auto 1fr; gap:9px 14px; font-size:13px; color:var(--sub); align-items:center}
+.kmap kbd{
+  font-family:"VT323",monospace; font-size:15px; color:var(--ink);
+  background:#161210; border:1px solid var(--panel-line); border-bottom-width:3px;
+  border-radius:7px; padding:2px 9px; min-width:34px; text-align:center; transition:.15s;
+}
+.kmap div:hover kbd{border-color:#8b6a45; color:#ffd9a8; transform:translateY(-1px)}
+.divider{height:1px; background:var(--panel-line); margin:20px 0}
+#history{list-style:none; display:flex; flex-direction:column; gap:8px; max-height:180px; overflow:auto; scrollbar-width:thin; scrollbar-color:#8b6a45 transparent}
+#history li{
+  display:flex; justify-content:space-between; gap:10px;
+  font-family:"VT323",monospace; font-size:17px; letter-spacing:1px;
+  color:#93a06b; background:#191510; border:1px solid #2c2620; border-radius:9px;
+  padding:6px 12px; animation:h-in .35s cubic-bezier(.2,.9,.3,1) both;
+}
+#history li b{color:#e6c98f; font-weight:400}
+#history .empty{justify-content:center; color:#5c5346; border-style:dashed; background:transparent; font-size:14px; font-family:"Space Grotesk"; letter-spacing:0}
+@keyframes h-in{from{opacity:0; transform:translateY(-8px)}}
+@keyframes rise{from{opacity:0; transform:translateY(26px) scale(.985)}}
+
+@media (max-width:960px){
+  .stage{grid-template-columns:1fr; gap:30px; justify-items:center}
+  .brand,.panel{justify-self:center; text-align:left}
+  .brand{text-align:center} .brand .cells{justify-content:center} .brand p{margin-left:auto;margin-right:auto}
+  .panel{width:min(382px,92vw)}
+  .calc{width:min(382px,92vw)}
+}
+</style>
+</head>
+<body>
+<div class="glow g1"></div><div class="glow g2"></div>
+
+<header class="topbar">
+  <span class="mark">CALC<em>·84</em></span>
+  <button id="soundBtn" aria-pressed="true"><span class="dot"></span>按键音 · 开</button>
+</header>
+
+<main class="stage">
+  <!-- 左：铭牌 -->
+  <section class="brand">
+    <h1>四则<br><span>运算</span>机</h1>
+    <div class="tag">ADD · SUB · MUL · DIV</div>
+    <p>一块液晶、十九枚键。连续运算、取反、百分比、退格，全部支持；也可以完全用键盘敲。</p>
+    <div class="cells"><i></i><i></i><i></i><i></i></div>
+  </section>
+
+  <!-- 中：计算器 -->
+  <section class="calc" aria-label="计算器">
+    <div class="solar" title="太阳能板"></div>
+    <div class="screen">
+      <span class="led" title="电源"></span>
+      <div class="boot"></div>
+      <div class="expr" id="expr">&nbsp;</div>
+      <div class="readout" id="readout" aria-live="polite">0</div>
+    </div>
+    <div class="keys">
+      <button class="key ac" data-k="escape"   data-a="clear">AC</button>
+      <button class="key fn" data-k="backspace" data-a="back">⌫</button>
+      <button class="key fn" data-k="%"        data-a="pct">%</button>
+      <button class="key op" data-k="/"        data-a="op" data-v="/" data-sym="÷">÷</button>
+
+      <button class="key num" data-k="7" data-a="digit" data-v="7">7</button>
+      <button class="key num" data-k="8" data-a="digit" data-v="8">8</button>
+      <button class="key num" data-k="9" data-a="digit" data-v="9">9</button>
+      <button class="key op"  data-k="*"       data-a="op" data-v="*" data-sym="×">×</button>
+
+      <button class="key num" data-k="4" data-a="digit" data-v="4">4</button>
+      <button class="key num" data-k="5" data-a="digit" data-v="5">5</button>
+      <button class="key num" data-k="6" data-a="digit" data-v="6">6</button>
+      <button class="key op"  data-k="-"       data-a="op" data-v="-" data-sym="−">−</button>
+
+      <button class="key num" data-k="1" data-a="digit" data-v="1">1</button>
+      <button class="key num" data-k="2" data-a="digit" data-v="2">2</button>
+      <button class="key num" data-k="3" data-a="digit" data-v="3">3</button>
+      <button class="key op"  data-k="+"       data-a="op" data-v="+" data-sym="+">+</button>
+
+      <button class="key num wide" data-k="0" data-a="digit" data-v="0">0</button>
+      <button class="key num" data-k="."     data-a="dot">.</button>
+      <button class="key eq"  data-k="enter" data-a="eq">=</button>
+    </div>
+    <div class="foot"><b>SOLAR</b><span>CALC·84 / R-DISP</span></div>
+  </section>
+
+  <!-- 右：快捷键 + 记录 -->
+  <aside class="panel">
+    <h2>键盘操控</h2>
+    <div class="kmap">
+      <kbd>0–9</kbd><span>输入数字</span>
+      <kbd>+ − * /</kbd><span>加减乘除</span>
+      <kbd>Enter</kbd><span>求值（=）</span>
+      <kbd>Esc</kbd><span>全部清空</span>
+      <kbd>⌫</kbd><span>删除末位</span>
+      <kbd>%</kbd><span>百分比</span>
+    </div>
+    <div class="divider"></div>
+    <h2>运算记录</h2>
+    <ul id="history"><li class="empty">按 = 后，算式会记在这里</li></ul>
+  </aside>
+</main>
+
+<script>
+/* ───────── 状态机 ───────── */
+let cur='0', prev=null, op=null, fresh=true, err=false, expr='';
+const readout=document.getElementById('readout'),
+      exprEl=document.getElementById('expr'),
+      hist=document.getElementById('history');
+const SYM={'+':'+','-':'−','*':'×','/':'÷'};
+
+const fmt=n=>{
+  if(n===null||!isFinite(n)) return 'Error';
+  if(n!==0 && (Math.abs(n)>=1e12 || Math.abs(n)<1e-9))
+    return n.toExponential(6).replace(/\.?0+e/,'e');
+  return String(parseFloat(n.toPrecision(12)));
+};
+
+function apply(a,o,b){
+  switch(o){
+    case '+': return a+b;
+    case '-': return a-b;
+    case '*': return a*b;
+    case '/': return b===0 ? null : a/b;
+  }
+}
+
+function render(){
+  readout.textContent = cur;
+  const n=cur.length;
+  readout.style.fontSize = n<=9?'56px': n<=12?'44px': n<=15?'33px':'26px';
+  exprEl.textContent = expr || '\u00A0';
+}
+
+function push(text,res){
+  const empty=hist.querySelector('.empty'); if(empty) empty.remove();
+  const li=document.createElement('li');
+  li.innerHTML=`<span>${text}</span><b>= ${res}</b>`;
+  hist.prepend(li);
+  while(hist.children.length>6) hist.lastChild.remove();
+}
+
+/* ───────── 动作 ───────── */
+function clearAll(){ cur='0'; prev=null; op=null; fresh=true; err=false; expr=''; }
+
+function inputDigit(d){
+  if(err) clearAll();
+  if(fresh){ cur=(d==='0')?'0':d; fresh=false; }
+  else{
+    if(cur.replace(/[-.]/g,'').length>=12) return;   // 12 位上限
+    cur = (cur==='0') ? d : cur+d;
+  }
+}
+function inputDot(){
+  if(err) clearAll();
+  if(fresh){ cur='0.'; fresh=false; }
+  else if(!cur.includes('.')) cur+='.';
+}
+function chooseOp(o){
+  if(err) return;
+  if(op!==null && !fresh){                 // 链式：先结算 pending
+    const r=apply(prev,parseFloat(cur),op);
+    if(r===null){ toError(`${fmt(prev)} ${SYM[op]} 0`); return; }
+    prev=r; cur=fmt(r);
+  }else if(prev===null){ prev=parseFloat(cur); }
+  op=o; fresh=true;
+  expr=`${fmt(prev)} ${SYM[o]}`;
+}
+function equals(){
+  if(err) return;
+  if(op===null||prev===null){ expr=fmt(parseFloat(cur)||0)+' ='; flash(); return; }
+  const a=prev, b=parseFloat(cur), o=op, text=`${fmt(a)} ${SYM[o]} ${fmt(b)}`;
+  const r=apply(a,o,b);
+  expr=text+' =';
+  if(r===null){ toError(text); return; }
+  cur=fmt(r); prev=null; op=null; fresh=true;
+  push(text, cur);
+}
+function toError(text){ expr=text+' ='; cur='Error'; prev=null; op=null; fresh=true; err=true; push(text,'Error'); }
+function sign(){ if(err||cur==='0') return; cur=cur.startsWith('-')?cur.slice(1):'-'+cur; }
+function pct(){ if(err) return; cur=fmt(parseFloat(cur)/100); }
+function back(){
+  if(err){ clearAll(); return; }
+  if(fresh) return;
+  cur=cur.length>1?cur.slice(0,-1):'0';
+  if(cur==='-'||cur==='') cur='0';
+}
+
+const actions={digit:inputDigit, dot:inputDot, op:chooseOp, eq:equals,
+               clear:clearAll, sign, pct, back};
+
+function doAction(a,v,symEl){
+  actions[a] && actions[a](v);
+  render();
+  if(a!=='back') flash();
+  blip(a==='eq'?820 : a==='clear'?300 : a==='op'?480 : 640);
+}
+function flash(){
+  readout.animate(
+    [{opacity:.35, transform:'translateY(2px)'},{opacity:1, transform:'none'}],
+    {duration:130, easing:'ease-out'}
+  );
+}
+
+/* ───────── 按键音（WebAudio 短促方波） ───────── */
+let AC=null, soundOn=true;
+function blip(f){
+  if(!soundOn) return;
+  AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+  const t=AC.currentTime, o=AC.createOscillator(), g=AC.createGain();
+  o.type='square'; o.frequency.value=f;
+  g.gain.setValueAtTime(.07,t);
+  g.gain.exponentialRampToValueAtTime(.0001,t+.07);
+  o.connect(g).connect(AC.destination); o.start(t); o.stop(t+.08);
+}
+const sBtn=document.getElementById('soundBtn');
+sBtn.onclick=()=>{
+  soundOn=!soundOn;
+  sBtn.classList.toggle('off',!soundOn);
+  sBtn.setAttribute('aria-pressed',soundOn);
+  sBtn.innerHTML=`<span class="dot"></span>按键音 · ${soundOn?'开':'关'}`;
+  if(soundOn) blip(700);
+};
+
+/* ───────── 鼠标 ───────── */
+document.querySelector('.keys').addEventListener('click',e=>{
+  const b=e.target.closest('.key'); if(!b) return;
+  doAction(b.dataset.a, b.dataset.v);
+});
+
+/* ───────── 键盘（物理按下 → 对应键同步下沉） ───────── */
+document.addEventListener('keydown',e=>{
+  const k=e.key;
+  let a,v;
+  if(/^[0-9]$/.test(k)){ a='digit'; v=k; }
+  else if(k==='.'){ a='dot'; }
+  else if('+-*/'.includes(k)){ a='op'; v=k; }
+  else if(k==='Enter'||k==='='){ a='eq'; e.preventDefault(); }
+  else if(k==='Backspace'){ a='back'; e.preventDefault(); }
+  else if(k==='Escape'||k==='Delete'){ a='clear'; }
+  else if(k==='%'){ a='pct'; }
+  else return;
+  const btn=document.querySelector(`.key[data-k="${k==='Enter'?'enter':k}"]`);
+  if(btn){ btn.classList.add('pressed'); setTimeout(()=>btn.classList.remove('pressed'),130); }
+  doAction(a,v);
+});
+
+render();
+</script>
+</body>
+</html>
